@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ person.first_name }} {{ person.last_name }}</title>
+</head>
+<body>
+    <h1>{{ person.first_name }} {{ person.last_name }}</h1>
+    <img src="{{ person.image.url }}" alt="{{ person.first_name }}">
+    <p>Birth Date: {{ person.birth_date }}</p>
+
+    <h2>Edit Person</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>

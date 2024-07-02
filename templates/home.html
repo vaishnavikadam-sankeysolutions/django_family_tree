@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Family Tree</title>
+    <li class="nav-item" >
+        <a href="{% url 'add_initial_person' %}" class="nav-link text-white">Add Person</a>
+    </li>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .person {
+            cursor: pointer;
+        }
+        .person circle {
+            stroke: #999;
+            stroke-width: 1.5px;
+        }
+        .person image {
+            clip-path: circle(20px at center);
+        }
+        .person text {
+            font-family: sans-serif;
+            font-size: 10px;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <h1>Family Tree</h1>
+    <div id="tree"></div>
+    <pre>{{ persons_data|json_script:"persons-data" }}</pre>
+    <pre>{{ relationships_data|json_script:"relationships-data" }}</pre>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Retrieve and parse JSON data from the script tags
+            console.log(document.getElementById('persons-data'));
+            const personsData = JSON.parse(JSON.parse(document.getElementById('persons-data').textContent));
+            const relationshipsData = JSON.parse(JSON.parse(document.getElementById('relationships-data').textContent));
+            // Convert the JSON data to JavaScript objects
+            const persons = personsData.map(person => person.fields);
+            console.log(persons)
+            const relationships = relationshipsData.map(rel => rel.fields);
+    
+            // Setup D3.js code here
+            const width = 800;
+            const height = 600;
+            
+            const svg = d3.select("#tree").append("svg")
+                .attr("width", width)
+                .attr("height", height);
+    
+            const nodes = persons.map(person => ({
+                id: person.pk,
+                name: `${person.first_name} ${person.last_name}`,
+                image: person.image || null,
+            }));
+    
+            const links = relationships.map(rel => ({
+                source: rel.from_person,
+                target: rel.to_person,
+                type: rel.relationship_type,
+            }));
+    
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+    
+            const link = svg.append("g")
+                .attr("class", "links")
+                .selectAll("line")
+                .data(links)
+                .enter().append("line")
+                .attr("stroke-width", 2);
+    
+            const node = svg.append("g")
+                .attr("class", "nodes")
+                .selectAll("g")
+                .data(nodes)
+                .enter().append("g")
+                .attr("class", "person")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+    
+            node.append("circle")
+                .attr("r", 20)
+                .on("click", function(event, d) {
+                    handleNodeClick(d);
+                });
+    
+            node.append("image")
+                .attr("xlink:href", d => `http://127.0.0.1:8000/media/${d.image}`)
+                .attr("x", -20)
+                .attr("y", -20)
+                .attr("height", 40)
+                .attr("width", 40);
+    
+            node.append("text")
+                .attr("dy", 30)
+                .attr("text-anchor", "middle")
+                .text(d => d.name);
+    
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+    
+                node
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+    
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+    
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+    
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+    
+            function handleNodeClick(d) {
+                const options = ["Add Parent", "Add Spouse", "Add Child"];
+                const promptText = `What would you like to add to ${d.name}?`;
+                const choice = prompt(`${promptText}\n${options.join("\n")}`);
+                if (choice) {
+                    let relationshipType;
+                    if (choice === "Add Parent") {
+                        relationshipType = "PARENT";
+                    } else if (choice === "Add Spouse") {
+                        relationshipType = "SPOUSE";
+                    } else if (choice === "Add Child") {
+                        relationshipType = "CHILD";
+                    }
+                    if (relationshipType) {
+                        const name = prompt("Enter the name of the new person:");
+                        const birth_date = prompt("Enter the birth date of the new person:");
+                        const image = prompt("Enter the URL of the image (optional):");
+                        fetch(`/api/add_person/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCookie('csrftoken'),
+                            },
+                            body: JSON.stringify({
+                                name: name,
+                                birth_date: birth_date,
+                                image: `http://127.0.0.1:8000/media/${image}`,
+                                relationshipType: relationshipType,
+                                fromPersonId: d.id
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert("Failed to add person.");
+                            }
+                        });
+                    }
+                }
+            }
+    
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+        });
+    </script>
+    
+</body>
+</html>
