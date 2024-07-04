@@ -12,3 +12,11 @@ class Person(models.Model):
     @property
     def parent_id(self):
         return self.parent.id if self.parent else None
+
+    @property
+    def children_ids(self):
+        return [child.id for child in self.children.all()]
+
+    @property
+    def spouse_id(self):
+        return self.spouse.id if self.spouse else None
