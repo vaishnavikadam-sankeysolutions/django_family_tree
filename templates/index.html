@@ -24,9 +24,10 @@
     </form>
 </div>
 
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const data = JSON.parse('{{ data|escapejs }}');
+        let data = JSON.parse('{{ data|escapejs }}');
 
         const addPersonIcon = document.getElementById('add-person');
         const personForm = document.getElementById('person-form');
@@ -66,14 +67,47 @@
 
         data.forEach(renderPerson);
 
+        if (data.length > 0) {
+            addPersonIcon.style.display = 'none';
+        }
+
         function addNewPerson() {
             personForm.style.display = 'block';
             relationshipForm.style.display = 'none';
             addPersonIcon.style.display = 'none';
         }
 
-        document.querySelector('form[action="{% url "add_person" %}"]').addEventListener('submit', function() {
-            addNewPerson();
+        // Handle form submission via AJAX
+        document.querySelector('#person-form form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            fetch("{% url 'add_person' %}", {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(person => {
+                data.push(person);
+                renderPerson(person);
+                updateTree();
+                personForm.style.display = 'none';
+            });
+        });
+
+        document.querySelector('#relationship-form form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            fetch("{% url 'add_person' %}", {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(person => {
+                data.push(person);
+                renderPerson(person);
+                updateTree();
+                relationshipForm.style.display = 'none';
+            });
         });
 
         // D3.js visualization code
@@ -81,36 +115,56 @@
             .attr("width", 800)
             .attr("height", 600);
 
-        const root = d3.stratify()
-            .id(d => d.id)
-            .parentId(d => d.parent_id)(data);
+        function updateTree() {
+            svg.selectAll("*").remove();
 
-        const treeLayout = d3.tree().size([800, 600]);
-        treeLayout(root);
+            if (data.length === 0) return;
 
-        const nodes = svg.append("g")
-            .selectAll("g")
-            .data(root.descendants())
-            .enter()
-            .append("g")
-            .attr("transform", d => `translate(${d.x}, ${d.y})`);
+            // Ensure there's only one root
+            const rootCandidates = data.filter(d => !d.parent_id);
+            if (rootCandidates.length !== 1) {
+                console.error("Invalid number of root nodes:", rootCandidates.length);
+                return;
+            }
 
-        nodes.append("circle")
-            .attr("r", 20);
+            try {
+                const root = d3.stratify()
+                    .id(d => d.id)
+                    .parentId(d => d.parent_id)(data);
 
-        nodes.append("text")
-            .attr("dy", -10)
-            .text(d => d.data.name);
+                const treeLayout = d3.tree().size([800, 600]);
+                treeLayout(root);
 
-        const links = svg.append("g")
-            .selectAll("line")
-            .data(root.links())
-            .enter()
-            .append("line")
-            .attr("x1", d => d.source.x)
-            .attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x)
-            .attr("y2", d => d.target.y);
+                const nodes = svg.append("g")
+                    .selectAll("g")
+                    .data(root.descendants())
+                    .enter()
+                    .append("g")
+                    .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+                nodes.append("circle")
+                    .attr("r", 20);
+
+                nodes.append("text")
+                    .attr("dy", -10)
+                    .text(d => d.data.name);
+
+                const links = svg.append("g")
+                    .selectAll("line")
+                    .data(root.links())
+                    .enter()
+                    .append("line")
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+            } catch (error) {
+                console.error("Error creating tree:", error);
+            }
+        }
+
+        updateTree();
     });
 </script>
+
 {% endblock %}
