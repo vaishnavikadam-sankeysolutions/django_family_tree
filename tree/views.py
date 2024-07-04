@@ -3,6 +3,8 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from .models import Person
 from .forms import PersonForm, RelationshipForm
+from django.core.serializers.json import DjangoJSONEncoder
+import json
 
 def index(request):
     persons = Person.objects.all()
@@ -17,7 +19,7 @@ def index(request):
     context = {
         'form': PersonForm(),
         'relationship_form': RelationshipForm(),
-        'data': data
+        'data': json.dumps(data, cls=DjangoJSONEncoder),
     }
     return render(request, 'index.html', context)
 
