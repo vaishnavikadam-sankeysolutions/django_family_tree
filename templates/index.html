@@ -1,0 +1,48 @@
+
+
+{% extends 'base.html' %}
+
+{% block content %}
+<div id="tree-container">
+    <div class="circle-icon" id="add-person">
+        <span>+</span>
+    </div>
+</div>
+
+<div id="person-form" style="display:none;">
+    <form method="post" enctype="multipart/form-data" action="{% url 'add_person' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Add Person</button>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const data = JSON.parse('{{ data|escapejs }}');
+
+        const addPersonIcon = document.getElementById('add-person');
+        const personForm = document.getElementById('person-form');
+
+        addPersonIcon.addEventListener('click', function() {
+            personForm.style.display = 'block';
+        });
+
+        data.forEach(person => {
+            const personIcon = document.createElement('div');
+            personIcon.className = 'circle-icon';
+            if (person.image) {
+                const img = document.createElement('img');
+                img.src = person.image;
+                personIcon.appendChild(img);
+            } else {
+                personIcon.innerHTML = '<span>' + person.name.charAt(0) + '</span>';
+            }
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = person.name;
+            personIcon.appendChild(nameSpan);
+            document.getElementById('tree-container').appendChild(personIcon);
+        });
+    });
+</script>
+{% endblock %}
